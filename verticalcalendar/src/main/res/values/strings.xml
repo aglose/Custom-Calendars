@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">VerticalCalendar</string>
+
+    <string name="monday">Monday</string>
+    <string name="sunday">Tuesday</string>
+    <string name="tuesday">Wednesday</string>
+    <string name="wednesday">Thursday</string>
+    <string name="thursday">Friday</string>
+    <string name="friday">Saturday</string>
+    <string name="saturday">Sunday</string>
+</resources>

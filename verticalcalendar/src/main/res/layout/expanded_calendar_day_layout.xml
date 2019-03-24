@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    android:id="@+id/clickable_background"
+    android:clickable="true"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="50dp">
+    <View
+        android:id="@+id/background_view"
+        android:visibility="invisible"
+        android:background="@drawable/rounded_primary"
+        android:layout_margin="5dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+    <TextView
+        android:id="@+id/day_of_month_text"
+        android:layout_gravity="center"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:gravity="center"
+        android:textColor="@color/primaryTextColor"
+        android:textStyle="bold"
+        android:padding="5dp"
+        android:textSize="18sp"
+        tools:text="30"/>
+    <TextView
+        android:id="@+id/activity_dot"
+        android:text="•"
+        android:textColor="@color/secondaryDarkColor"
+        android:textSize="13sp"
+        android:visibility="invisible"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal|bottom"
+        android:layout_gravity="bottom"
+        android:textStyle="bold" android:layout_marginBottom="5dp"/>
+</FrameLayout>

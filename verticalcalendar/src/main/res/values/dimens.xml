@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="expanded_cal_day_height">60dp</dimen>
+</resources>

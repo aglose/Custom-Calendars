@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">HorizontalCalendar</string>
+
+    <string name="calendar_header_normal_date_format">MMMM yyyy</string>
+    <string name="calendar_header_edit_date_format">MMMM yyyy</string>
+    <string name="calendar_header_time_format">MMMM yyyy MM:ss</string>
+</resources>
