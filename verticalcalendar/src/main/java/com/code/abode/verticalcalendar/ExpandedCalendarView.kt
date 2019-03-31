@@ -1,10 +1,8 @@
 package com.code.abode.verticalcalendar
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Context
 import android.util.AttributeSet
-import android.util.SparseArray
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,7 +11,7 @@ import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import androidx.core.util.isNotEmpty
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.meticulous.creations.common.cal.DayView
 import com.meticulous.creations.common.cal.EventItem
@@ -21,7 +19,6 @@ import com.meticulous.creations.common.cal.util.ViewUtil
 import org.joda.time.DateTimeConstants
 import org.joda.time.LocalDate
 import org.zakariya.stickyheaders.SectioningAdapter
-import org.zakariya.stickyheaders.StickyHeaderLayoutManager
 import timber.log.Timber
 import java.util.*
 
@@ -80,7 +77,7 @@ class ExpandedCalendarView : FrameLayout {
         mRecyclerView = mRootView.findViewById(R.id.calendar_recyclerview)
 
         mAdapter = MultiCalendarAdapter()
-        mRecyclerView?.layoutManager = StickyHeaderLayoutManager()
+        mRecyclerView?.layoutManager = LinearLayoutManager(context)
         mRecyclerView?.adapter = mAdapter
     }
 
@@ -119,18 +116,19 @@ class ExpandedCalendarView : FrameLayout {
     fun setActiveDaysList(items: ArrayList<EventItem>) {
         mActiveDaysList = items
         var refresh = false
-        if(!mActiveDaysList.isNullOrEmpty() && mAdapter?.sectionCalendarList?.isNotEmpty() == true){
-            for (i in 0 until mAdapter?.sectionCalendarList?.size()!!) {
-                val section = mAdapter?.sectionCalendarList?.get(i)
-                for (j in mActiveDaysList?.indices!!) {
-                    val eventItem = mActiveDaysList?.get(j)
-                    val dateTime = LocalDate.fromCalendarFields(eventItem?.dateCalendar)
+        if(!mActiveDaysList.isNullOrEmpty() && mAdapter?.numberOfSections!! > 0){
+            for (i in 0 until TOTAL_MONTHS) {
+                mAdapter?.getSectionForIndex(i)?.let { section ->
+                    for (j in mActiveDaysList?.indices!!) {
+                        val eventItem = mActiveDaysList?.get(j)
+                        val dateTime = LocalDate.fromCalendarFields(eventItem?.dateCalendar)
 
-                    // we found the specific date, now set flags
-                    if (section?.monthDate?.monthOfYear == dateTime.monthOfYear && section.monthDate?.year == dateTime.year) {
-                        Timber.d(TAG, "setActiveDaysList section.calendarIndex: " + section.calendarIndex)
-                        section.flagForEvent = true
-                        refresh = true
+                        // we found the specific date, now set flags
+                        if (section.monthDate?.monthOfYear == dateTime.monthOfYear && section.monthDate?.year == dateTime.year) {
+                            Timber.d(TAG, "setActiveDaysList section.calendarIndex: %s", section.calendarIndex)
+                            section.flagForEvent = true
+                            refresh = true
+                        }
                     }
                 }
             }
@@ -143,12 +141,9 @@ class ExpandedCalendarView : FrameLayout {
 
     private inner class MultiCalendarAdapter : SectioningAdapter() {
 
-        var sectionCalendarList: SparseArray<ExpandedCalendarView.Section>? = null
-
         private var startCalendarDate: LocalDate? = null
         private var endCalendarDate: LocalDate? = null
 
-        private val mSelectedSectionIndex: Int = 0
         private var mSelectedItemPosition: Int = 0
 
         override fun onCreateItemViewHolder(parent: ViewGroup?, itemType: Int): SectioningAdapter.ItemViewHolder {
@@ -166,27 +161,29 @@ class ExpandedCalendarView : FrameLayout {
         override fun onBindItemViewHolder(viewHolder: SectioningAdapter.ItemViewHolder?, sectionIndex: Int, itemIndex: Int, itemType: Int) {
             val gridHolder = viewHolder as CalendarGridViewHolder?
 
-            val section = sectionCalendarList?.get(sectionIndex) //sectionIndex is the same as the section.calendarIndex
+            val section = getSectionForIndex(sectionIndex)
 
-            val mGridAdapter = object : MonthAdapter(section?.monthDate, section?.flagForEvent ?: false) {
+            val mGridAdapter = object : MonthAdapter(section.monthDate, section.flagForEvent) {
                 override fun onDate(localDate: LocalDate?) {
                     if (localDate != null) {
                         mOnDateClickListener?.onDateClick(Calendar.getInstance().apply { time = localDate.toDate() })
                     }
                 }
             }
-            gridHolder!!.calenderView.adapter = mGridAdapter
+            if(gridHolder != null){
+                gridHolder.calenderView.adapter = mGridAdapter
 
-            // dynamically set the height of the calendar depending on how many rows necessary for the specific calendar
-            val rowCount = Math.ceil(gridHolder.calenderView.count.toDouble() / 7.toDouble())
-            Timber.d(TAG, "onBindItemViewHolder: " + Math.ceil(gridHolder.calenderView.count.toDouble() / gridHolder.calenderView.numColumns.toDouble()))
-            if (rowCount == 5.0 || rowCount == 6.0) {
-                gridHolder.calenderView.layoutParams.height = ViewUtil.dpToPx((DAY_VIEW_HEIGHT_DIPS * rowCount + 1.0 + DAY_VIEW_PADDING_DIPS.toDouble()).toInt())
+                // dynamically set the height of the calendar depending on how many rows necessary for the specific calendar
+                val rowCount = Math.ceil(gridHolder.calenderView.count.toDouble() / 7.toDouble())
+                Timber.d(TAG, "onBindItemViewHolder: %s", Math.ceil(gridHolder.calenderView.count.toDouble() / gridHolder.calenderView.numColumns.toDouble()))
+                if (rowCount == 5.0 || rowCount == 6.0) {
+                    gridHolder.calenderView.layoutParams.height = ViewUtil.dpToPx((DAY_VIEW_HEIGHT_DIPS * rowCount + 1.0 + DAY_VIEW_PADDING_DIPS.toDouble()).toInt())
+                }
             }
         }
 
         override fun onBindHeaderViewHolder(viewHolder: SectioningAdapter.HeaderViewHolder?, sectionIndex: Int, headerType: Int) {
-            val s = sectionCalendarList!!.get(sectionIndex)
+            val s = getSectionForIndex(sectionIndex)
             val hvh = viewHolder as StickyHeaderViewHolder?
             hvh?.headerText?.text = s.header
         }
@@ -199,7 +196,7 @@ class ExpandedCalendarView : FrameLayout {
         }
 
         override fun getNumberOfSections(): Int {
-            return if (sectionCalendarList == null) 0 else sectionCalendarList!!.size()
+            return TOTAL_MONTHS
         }
 
         /* Always make sure the header has a section */
@@ -218,13 +215,9 @@ class ExpandedCalendarView : FrameLayout {
         * */
         fun setSelectedDayAndBuild(date: LocalDate) {
             selectedDate = date
-            val start = Calendar.getInstance()
-            start.set(Calendar.YEAR, 2017)
-            start.set(Calendar.DAY_OF_YEAR, 1)
-            startCalendarDate = LocalDate.fromCalendarFields(start) // Always start Jan 1, 2017
-            endCalendarDate = date.plusYears(1) // End 2 years from today's date
+            startCalendarDate = date.minusYears(1)
+            endCalendarDate = date.plusMonths(TOTAL_MONTHS)
 
-            buildCalendarList()
             setIndexes()
             mSelectedItemPosition = findHeaderPositionInCalendar(selectedDate)
             notifyAllSectionsDataSetChanged()
@@ -243,54 +236,35 @@ class ExpandedCalendarView : FrameLayout {
             val adjustedPosition = position
             notifyAllSectionsDataSetChanged()
             Timber.d(TAG, "setSelectedDay position: $position")
-            Thread {
-                try {
-                    Thread.sleep(800)
-                } catch (e: InterruptedException) {
-                    e.printStackTrace()
-                }
-
-                (context as Activity).runOnUiThread { scrollChange(adjustedPosition) }
-            }.run()
-
+            scrollChange(adjustedPosition)
         }
 
         private fun scrollChange(position: Int) {
             mRecyclerView?.scrollToPosition(position)
         }
 
-        /*
-        *  With the selected date chosen, a padding of minus and plus 6 months is used to create a year
-        *  window for the calendar view
-        * */
-        private fun buildCalendarList() {
-
-            var monthCount = 0
-            sectionCalendarList = SparseArray()
-            Timber.d(TAG, "buildCalendarList startCalendarDate: " + startCalendarDate!!)
-            Timber.d(TAG, "buildCalendarList endCalendarDate: " + endCalendarDate!!)
-            while (startCalendarDate!!.toDate().before(endCalendarDate!!.toDate())) {
-                val monthSection = Section()
-                monthSection.calendarIndex = monthCount // calendarIndex is the same as sectionIndex passed by SectioningAdapter
-                monthSection.monthDate = startCalendarDate
-                monthSection.header = startCalendarDate!!.monthOfYear().getAsText(Locale.getDefault())
-                monthSection.header = monthSection.header + " " + startCalendarDate!!.year().getAsText(Locale.getDefault())
-                sectionCalendarList!!.put(monthSection.calendarIndex, monthSection)
-
-                monthCount++
-                startCalendarDate = startCalendarDate!!.plusMonths(1)
-                Timber.d(TAG, "buildCalendarList monthDate: " + startCalendarDate!!.toString())
-                Timber.d(TAG, "buildCalendarList header: " + startCalendarDate!!.monthOfYear().asShortText)
+        fun getSectionForIndex(sectionIndex: Int) : ExpandedCalendarView.Section {
+            val currentYear = LocalDate.now().year()
+            val monthSection = Section()
+            val sectionMonth = startCalendarDate?.plusMonths(sectionIndex)
+            monthSection.calendarIndex = sectionIndex // calendarIndex is the same as sectionIndex passed by SectioningAdapter
+            monthSection.monthDate = sectionMonth
+            monthSection.header = if(currentYear.compareTo(sectionMonth) == 0){
+                sectionMonth?.monthOfYear()?.getAsText(Locale.getDefault())
+            }else{
+                sectionMonth?.monthOfYear()?.getAsText(Locale.getDefault()) + " " + sectionMonth?.year()?.getAsText(Locale.getDefault())
             }
+            return monthSection
         }
+
 
         /*
         *  This method assigns the section list items, their respecitve positions in the adapter. This
         *  has to be done after the calendar list is already build
         * */
         private fun setIndexes() {
-            for (i in 0 until sectionCalendarList!!.size()) {
-                val section = sectionCalendarList!!.get(i)
+            for (i in 0 until TOTAL_MONTHS) {
+                val section = getSectionForIndex(i)
                 section.headerPosition = getAdapterPositionForSectionHeader(i)
             }
         }
@@ -299,14 +273,15 @@ class ExpandedCalendarView : FrameLayout {
         *  Using a @param LocalDate this method returns the headerPosition in the adapter
         * */
         private fun findHeaderPositionInCalendar(date: LocalDate?): Int {
-            for (i in 0 until sectionCalendarList!!.size()) {
-                val section = sectionCalendarList!!.get(i)
+            for (i in 0 until TOTAL_MONTHS) {
+                val section = getSectionForIndex(i)
                 if (section.monthDate!!.year == date!!.year && section.monthDate!!.monthOfYear == date.monthOfYear) {
                     return section.headerPosition
                 }
             }
             return 0
         }
+
 
         /*
         *  Basic DateViewHolder Pattern for the Item beneath each Header
@@ -326,7 +301,7 @@ class ExpandedCalendarView : FrameLayout {
     /*
     *  Section object used to keep track of the month metadata
     * */
-    private inner class Section {
+    inner class Section {
         internal var headerPosition: Int = 0
         internal var calendarIndex: Int = 0
         internal var header: String? = null
@@ -339,28 +314,21 @@ class ExpandedCalendarView : FrameLayout {
     * of numbers. Active days are displayed here as well
     * */
     abstract inner class MonthAdapter constructor(var date: LocalDate?, flagForEvent: Boolean) : BaseAdapter() {
-
-        private val inflater: LayoutInflater
-
         /* The current calendar instance being implemented */
         private val mCalendarInstance: LocalDate
 
         /* Integers used to keep track of implemented calendar */
         private val mMonth: Int
         private val mYear: Int
-        private var mDaysShown: Int = 0
-        private var mDaysLastMonth: Int = 0
 
         /* Today's calendar */
         private val mToday: LocalDate
-
-        /* List to hold all day item objects */
-        private var mDayViewContainer = ArrayList<DayView?>()
 
         /* List of each month's total number of days */
         private val mDaysInMonth = intArrayOf(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
 
         private var flagForEvent = false
+        private var lastSelectedDay = -1
 
         init {
             this.flagForEvent = flagForEvent
@@ -369,59 +337,39 @@ class ExpandedCalendarView : FrameLayout {
             mYear = date?.year!!
             mCalendarInstance = LocalDate(mYear, mMonth, 1)
             mToday = LocalDate.now()
-            populateMonth()
-            this.inflater = LayoutInflater.from(context)
         }
 
         protected abstract fun onDate(localDate: LocalDate?)
 
-        private fun populateMonth() {
-            mDayViewContainer = ArrayList()
-
-            var dayView: DayView
-
+        private fun getDayViewForPosition(position: Int): DayView? {
             val firstDay = getDay(mCalendarInstance.dayOfWeek)
 
-            Timber.d(TAG, "populateMonth firstDay: $firstDay")
-            for (i in 0 until firstDay) {
-                dayView = DayView()
-                dayView.dateTime = null
-                mDayViewContainer.add(dayView)
-                mDaysLastMonth++
-                mDaysShown++
+            if(position < firstDay){
+                return null
             }
 
-            val daysInMonth = daysInMonth(mMonth)
-            for (day in 1..daysInMonth) {
-                if (day >= 32) {
-                    //some reason January 2020 has a 32 day number
-                    Timber.d(TAG, "populateMonth: $mMonth")
-                    Timber.d(TAG, "populateMonth: $mYear")
+            val dayAdjustedPosition = position - firstDay + 1
 
-                } else {
-                    dayView = DayView()
-                    dayView.dateTime = mCalendarInstance.withDayOfMonth(day)
-                    dayView.day = day.toString()
-                    dayView.isToday = isToday(getDate(day))
-                    if (flagForEvent) {
-                        Timber.d(TAG, "populateMonth flagForEvent: $flagForEvent")
-                        for (j in mActiveDaysList!!.indices) {
-                            val eventItem = mActiveDaysList!![j]
-                            val eventDate = LocalDate.fromCalendarFields(eventItem.eventDate)
-                            if (day == eventDate.dayOfMonth
-                                    && mCalendarInstance.monthOfYear == eventDate.monthOfYear
-                                    && mCalendarInstance.year == eventDate.year) {
-                                dayView.isActiveDay = true
-                                dayView.activeType = eventItem.eventStatus
-                            }
+            return if(dayAdjustedPosition < 32){
+                val dayView = DayView()
+                dayView.dateTime = mCalendarInstance.withDayOfMonth(dayAdjustedPosition)
+                dayView.day = dayAdjustedPosition.toString()
+                dayView.isToday = isToday(getDate(dayAdjustedPosition))
+                if (flagForEvent) {
+                    Timber.d(TAG, "populateMonth flagForEvent: $flagForEvent")
+                    for (j in mActiveDaysList!!.indices) {
+                        val eventItem = mActiveDaysList!![j]
+                        val eventDate = LocalDate.fromCalendarFields(eventItem.eventDate)
+                        if (dayAdjustedPosition == eventDate.dayOfMonth
+                                && mCalendarInstance.monthOfYear == eventDate.monthOfYear
+                                && mCalendarInstance.year == eventDate.year) {
+                            dayView.isActiveDay = true
+                            dayView.activeType = eventItem.eventStatus
                         }
                     }
-
-                    mDaysShown++
-                    mDayViewContainer.add(dayView)
                 }
-
-            }
+                dayView
+            }else { null }
         }
 
         /*
@@ -464,7 +412,7 @@ class ExpandedCalendarView : FrameLayout {
         private fun getDate(position: Int): IntArray {
             val date = IntArray(3)
             date[DAY_FIELD] = position
-            Timber.d(TAG, "getDate: " + date[DAY_FIELD])
+            Timber.d(TAG, "getDate: %s", date[DAY_FIELD])
             date[MONTH_FIELD] = mMonth
             date[YEAR_FIELD] = mYear
 
@@ -476,7 +424,7 @@ class ExpandedCalendarView : FrameLayout {
             val holder: DateViewHolder
 
             if (view == null) {
-                view = inflater.inflate(R.layout.expanded_calendar_day_layout, null, false)
+                view = LayoutInflater.from(context).inflate(R.layout.expanded_calendar_day_layout, null, false)
 
                 holder = DateViewHolder()
                 holder.dayOfMonth = view!!.findViewById(R.id.day_of_month_text)
@@ -484,34 +432,31 @@ class ExpandedCalendarView : FrameLayout {
                 holder.selectedBackground = view.findViewById(R.id.background_view)
                 holder.activityDot = view.findViewById(R.id.activity_dot)
 
-                if (mDayViewContainer[position] != null && mDayViewContainer[position]?.dateTime != null) {
-                    val dayView = mDayViewContainer[position]
+                val dayView = getDayViewForPosition(position)
+                if (dayView != null) {
                     Timber.d(TAG, "getView dayView: $dayView")
                     Timber.d(TAG, "getView position: $position")
-                    Timber.d(TAG, "getView mDaysLastMonth: $mDaysLastMonth")
                     holder.clickableBackground?.setOnClickListener {
-                        for (dayView1 in mDayViewContainer) {
-                            dayView1?.isSelected = false
-                        }
-                        dayView?.isSelected = true
-                        mAdapter?.setSelectedDay(dayView?.dateTime) //this will reset the selected item
-                        Timber.d(TAG, "onClick: " + dayView?.dateTime.toString())
-                        Timber.d(TAG, "onClick: " + dayView?.day)
-                        onDate(dayView?.dateTime)
+                        lastSelectedDay = position
+                        dayView.isSelected = true
+                        mAdapter?.setSelectedDay(dayView.dateTime) //this will reset the selected item
+                        Timber.d(TAG, "onClick: %s", dayView.dateTime.toString())
+                        Timber.d(TAG, "onClick: %s", dayView.day)
+                        onDate(dayView.dateTime)
                     }
-                    holder.dayOfMonth!!.text = dayView?.day
+                    holder.dayOfMonth!!.text = dayView.day
 
                     //active
-                    if (dayView?.isActiveDay == true) {
+                    if (dayView.isActiveDay) {
                         holder.activityDot!!.visibility = View.VISIBLE
-                        Timber.d(TAG, "onBindViewHolder: " + dayView.dateTime)
-                        Timber.d(TAG, "onBindViewHolder: " + dayView.activeType)
+                        Timber.d(TAG, "onBindViewHolder: %s", dayView.dateTime)
+                        Timber.d(TAG, "onBindViewHolder: %s", dayView.activeType)
                         dayView.activeType?.getDotColor(context)?.let { holder.activityDot?.setTextColor(it) }
                     }
 
                     //selected
-                    if (dayView?.dateTime?.isEqual(selectedDate) == true) {
-                        Timber.d(TAG, "selected: " + dayView.day)
+                    if (dayView.dateTime?.isEqual(selectedDate) == true) {
+                        Timber.d(TAG, "selected: %s", dayView.day)
                         holder.dayOfMonth?.setTextColor(getColor(R.color.white))
                         holder.selectedBackground?.visibility = View.VISIBLE
                         holder.activityDot?.setTextColor(getColor(R.color.white))
@@ -522,7 +467,7 @@ class ExpandedCalendarView : FrameLayout {
                             holder.selectedBackground?.setBackgroundResource(R.drawable.rounded_secondary)
                         }
                     } else {
-                        if (dayView?.isToday == true) {
+                        if (dayView.isToday) {
                             //today
                             holder.dayOfMonth?.setTextColor(getColor(R.color.primaryColor))
                         } else {
@@ -546,20 +491,15 @@ class ExpandedCalendarView : FrameLayout {
         }
 
         override fun getCount(): Int {
-            return mDayViewContainer.size
+            return daysInMonth(mMonth) + getDay(mCalendarInstance.dayOfWeek)
         }
 
         override fun getItem(position: Int): Any? {
-            return mDayViewContainer[position]
+            return getDayViewForPosition(position)
         }
 
         override fun getItemId(position: Int): Long {
             return position.toLong()
-        }
-
-        private fun selectDay(position: Int) {
-            val dayView = mDayViewContainer[position]
-            dayView?.isSelected = true
         }
 
         /*
@@ -583,5 +523,7 @@ class ExpandedCalendarView : FrameLayout {
         private val DAY_FIELD = 0
         private val MONTH_FIELD = 1
         private val YEAR_FIELD = 2
+
+        const val TOTAL_MONTHS = 120
     }
 }
